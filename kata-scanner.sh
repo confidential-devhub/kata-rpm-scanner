@@ -5,6 +5,10 @@ export REGISTRY_AUTH_FILE="${REGISTRY_AUTH_FILE:-$HOME/.docker/config.json}"
 
 if [[ ! -f "$REGISTRY_AUTH_FILE" ]]; then
     echo "Note: Registry auth file not found at $REGISTRY_AUTH_FILE."
+    if [[ -f "$XDG_RUNTIME_DIR/containers/auth.json" ]]; then
+        export REGISTRY_AUTH_FILE="$XDG_RUNTIME_DIR/containers/auth.json"
+        echo "Note: Trying alternate location $REGISTRY_AUTH_FILE"
+    fi
 fi
 
 # Input validation
@@ -39,24 +43,24 @@ for v in $ALL_VERSIONS; do
 
     if [[ "$is_not_too_low" == "$START_VER" ]] && [[ "$is_not_too_high" == "$END_VER" ]]; then
         echo -n "Checking $v... "
-        
+
         # Get the pull spec
         IMAGE=$(oc adm release info --image-for rhel-coreos-extensions "quay.io/openshift-release-dev/ocp-release:${v}-x86_64" 2>/dev/null)
-        
+
         if [[ -z "$IMAGE" ]]; then
             output="ERROR: Image pull spec not found"
         else
             # Run podman and strip the directory path
             raw_output=$(podman run --rm --quiet --authfile "$REGISTRY_AUTH_FILE" --entrypoint bash "$IMAGE" -c "ls /usr/share/rpm-ostree/extensions/*kata* 2>/dev/null")
-            
-            if [[ -z "$raw_output" ]]; then 
+
+            if [[ -z "$raw_output" ]]; then
                 output="No kata files found"
             else
                 # Clean up the string: remove path, flatten to one line
                 output=$(echo "$raw_output" | sed 's|/usr/share/rpm-ostree/extensions/||g' | tr '\n' ' ' | xargs)
             fi
         fi
-        
+
         echo "$output"
         KATA_RESULTS["$output"]="${KATA_RESULTS["$output"]} $v"
     fi
